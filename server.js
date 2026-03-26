@@ -360,15 +360,63 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ─── START ────────────────────────────────────────────────────────────────────
-app.listen(PORT, async () => {
-  console.log(`Xen Budget Tracker running on port ${PORT}`);
-  // Verify database connectivity on startup
+// ─── AUTO MIGRATE ─────────────────────────────────────────────────────────────
+async function initDB() {
   try {
     await pool.query('SELECT 1');
     console.log('[DB] Connected to PostgreSQL successfully');
   } catch (err) {
-    console.error('[DB] FAILED to connect to PostgreSQL:', err.message);
-    console.error('[DB] Make sure DATABASE_URL is set in Railway environment variables');
+    console.error('[DB] FAILED to connect:', err.message);
+    return;
   }
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS categories (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        color TEXT NOT NULL DEFAULT '#00d4ff',
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id, name)
+      );
+      CREATE TABLE IF NOT EXISTS budgets (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+        month INTEGER NOT NULL,
+        year INTEGER NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(user_id, month, year)
+      );
+      CREATE TABLE IF NOT EXISTS expenses (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+        amount NUMERIC(12,2) NOT NULL,
+        description TEXT DEFAULT '',
+        expense_date DATE NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_expenses_user_date ON expenses(user_id, expense_date);
+      CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category_id);
+      CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id);
+    `);
+    console.log('[DB] Schema ready');
+  } catch (err) {
+    console.error('[DB] Schema init failed:', err.message);
+  }
+}
+
+// ─── START ────────────────────────────────────────────────────────────────────
+app.listen(PORT, async () => {
+  console.log(`Xen Budget Tracker running on port ${PORT}`);
+  await initDB();
 });
