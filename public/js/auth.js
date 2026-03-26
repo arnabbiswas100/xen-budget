@@ -36,11 +36,13 @@ async function doLogin() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    const data = await res.json();
+    let data;
+    try { data = await res.json(); } catch { data = {}; }
     if (!res.ok) { setAuthError('login', data.error || 'Login failed'); return; }
     onAuthSuccess(data.user);
-  } catch {
-    setAuthError('login', 'Connection error');
+  } catch (err) {
+    setAuthError('login', 'Cannot reach server. Check your connection.');
+    console.error('[login fetch error]', err);
   } finally {
     setAuthLoading('loginBtn', false);
   }
@@ -61,11 +63,13 @@ async function doSignup() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    const data = await res.json();
+    let data;
+    try { data = await res.json(); } catch { data = {}; }
     if (!res.ok) { setAuthError('signup', data.error || 'Signup failed'); return; }
     onAuthSuccess(data.user);
-  } catch {
-    setAuthError('signup', 'Connection error');
+  } catch (err) {
+    setAuthError('signup', 'Cannot reach server. Check your connection.');
+    console.error('[signup fetch error]', err);
   } finally {
     setAuthLoading('signupBtn', false);
   }

@@ -71,7 +71,12 @@ app.post('/api/auth/signup', async (req, res) => {
     await client.query('BEGIN');
 
     const exists = await client.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
-    if (exists.rows.length > 0) return res.status(409).json({ error: 'Email already registered' });
+    if (exists.rows.length > 0) {
+      await client.query('ROLLBACK');
+      // BUG FIX: must release client before returning, otherwise pool leaks
+      client.release();
+      return res.status(409).json({ error: 'Email already registered' });
+    }
 
     const hash = await bcrypt.hash(password, 12);
     const userRes = await client.query(
@@ -94,10 +99,11 @@ app.post('/api/auth/signup', async (req, res) => {
     res.json({ user: { id: user.id, email: user.email } });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('[SIGNUP ERROR]', err.message);
+    res.status(500).json({ error: 'Server error', detail: err.message });
   } finally {
-    client.release();
+    // Only release if not already released above
+    try { client.release(); } catch (_) {}
   }
 });
 
@@ -117,8 +123,8 @@ app.post('/api/auth/login', async (req, res) => {
     setTokenCookie(res, { id: user.id, email: user.email });
     res.json({ user: { id: user.id, email: user.email } });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('[LOGIN ERROR]', err.message);
+    res.status(500).json({ error: 'Server error', detail: err.message });
   }
 });
 
@@ -355,6 +361,14 @@ app.get('*', (req, res) => {
 });
 
 // ─── START ────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Xen Budget Tracker running on port ${PORT}`);
+  // Verify database connectivity on startup
+  try {
+    await pool.query('SELECT 1');
+    console.log('[DB] Connected to PostgreSQL successfully');
+  } catch (err) {
+    console.error('[DB] FAILED to connect to PostgreSQL:', err.message);
+    console.error('[DB] Make sure DATABASE_URL is set in Railway environment variables');
+  }
 });
