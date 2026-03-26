@@ -1,4 +1,6 @@
 # Xen Budget Tracker — Full Stack
+## Live Demo
+https://xen-budget-production.up.railway.app/
 
 A cyberpunk-themed budget tracker with PostgreSQL backend, JWT auth, and Railway deployment.
 
