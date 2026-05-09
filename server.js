@@ -8,7 +8,7 @@ const cookieParser = require('cookie-parser');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'xen-dev-secret-change-in-production';
 const JWT_EXPIRES = '7d';
 
@@ -416,7 +416,7 @@ async function initDB() {
 }
 
 // ─── START ────────────────────────────────────────────────────────────────────
-app.listen(PORT, async () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Xen Budget Tracker running on port ${PORT}`);
   await initDB();
 });
